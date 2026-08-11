@@ -1,26 +1,31 @@
 import AppKit
-import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var window: NSWindow?
+    private let session = LaunchpadSessionController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.center()
-        window.title = "Launchpad Revived"
-        window.contentView = NSHostingView(rootView: EmptyRootView())
-        window.makeKeyAndOrderFront(nil)
-        self.window = window
         AppLogger.app.info("Application launched")
+        session.present()
+    }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        session.present()
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        AppLogger.app.info("Application will terminate")
+        AppLogger.app.info("Application will terminate — restoring presentationOptions")
+        session.dismiss(reason: "will-terminate")
+        session.restorePresentationOptionsIfNeeded()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        session.dismiss(reason: "should-terminate")
+        session.restorePresentationOptionsIfNeeded()
+        return .terminateNow
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
