@@ -33,8 +33,8 @@ final class LaunchpadSessionController {
             onBackgroundClick: { [weak self] in
                 self?.dismiss(reason: "background-click")
             },
-            onSelectApp: { _ in
-                // INT-01 lands in the launching phase.
+            onSelectApp: { [weak self] app in
+                self?.launchAndDismiss(app)
             }
         )
 
@@ -78,6 +78,14 @@ final class LaunchpadSessionController {
     func restorePresentationOptionsIfNeeded() {
         presentationGuard?.restore()
         presentationGuard = nil
+    }
+
+    private func launchAndDismiss(_ app: DiscoveredApp) {
+        // Dismiss first so presentationOptions are restored before the target activates (WIN-11, INT-01).
+        dismiss(reason: "launch")
+        Task { @MainActor in
+            await AppLauncher.launch(app)
+        }
     }
 
     private func installKeyMonitor() {
