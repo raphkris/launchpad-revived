@@ -10,8 +10,7 @@ final class LaunchpadSessionController {
     private var isPresented = false
     private var isDismissing = false
 
-    /// Apps from the most recent present (DISC-12).
-    private(set) var apps: [DiscoveredApp] = []
+    private let viewModel = LaunchpadViewModel()
 
     func present() {
         if isPresented {
@@ -25,13 +24,17 @@ final class LaunchpadSessionController {
             return
         }
 
-        apps = AppDiscovery.discover()
-        let wallpaper = WallpaperCapture.image(for: screen)
+        // DISC-12: rescan on every open.
+        viewModel.reload()
+        viewModel.wallpaper = WallpaperCapture.image(for: screen)
 
         let rootView = LaunchpadRootView(
-            wallpaper: wallpaper,
+            viewModel: viewModel,
             onBackgroundClick: { [weak self] in
                 self?.dismiss(reason: "background-click")
+            },
+            onSelectApp: { _ in
+                // INT-01 lands in the launching phase.
             }
         )
 
@@ -81,11 +84,20 @@ final class LaunchpadSessionController {
         removeKeyMonitor()
         keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
-            if event.keyCode == 53 {  // Escape
+
+            switch event.keyCode {
+            case 53:  // Escape
                 self.dismiss(reason: "escape")
                 return nil
+            case 123:  // Left arrow (LAY-05)
+                self.viewModel.goToPreviousPage()
+                return nil
+            case 124:  // Right arrow (LAY-05)
+                self.viewModel.goToNextPage()
+                return nil
+            default:
+                return event
             }
-            return event
         }
     }
 
