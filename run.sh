@@ -2,8 +2,9 @@
 #
 # Build, relaunch, and log. The only sanctioned build command (ENV-02).
 #
-#   ./run.sh          build + relaunch
-#   ./run.sh --build  build only, don't launch
+#   ./run.sh             build + relaunch
+#   ./run.sh --build     build only, don't launch
+#   ./run.sh --discover  build, then run binary with --discover (no window)
 #
 # On failure, the full log is at .build/last-build.log — read it before
 # guessing at the cause.
@@ -17,6 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$ROOT/.build"
 LOG="$BUILD_DIR/last-build.log"
 APP="$BUILD_DIR/Build/Products/$CONFIG/$SCHEME.app"
+BINARY="$APP/Contents/MacOS/$SCHEME"
 
 mkdir -p "$BUILD_DIR"
 
@@ -46,6 +48,15 @@ fi
 if [[ ! -d "$APP" ]]; then
   echo "==> Built, but no app at $APP"
   exit 1
+fi
+
+if [[ "${1:-}" == "--discover" ]]; then
+  if [[ ! -x "$BINARY" ]]; then
+    echo "==> Built, but no binary at $BINARY"
+    exit 1
+  fi
+  echo "==> Running --discover"
+  exec "$BINARY" --discover
 fi
 
 echo "==> Relaunching"

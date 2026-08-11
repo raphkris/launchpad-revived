@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-@main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
 
