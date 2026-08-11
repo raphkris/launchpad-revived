@@ -8,7 +8,7 @@ final class WindowResignDelegate: NSObject, NSWindowDelegate {
     var onResignKey: (() -> Void)?
 
     func windowDidResignKey(_ notification: Notification) {
-        MainActor.assumeIsolated {
+        Task { @MainActor in
             onResignKey?()
         }
     }

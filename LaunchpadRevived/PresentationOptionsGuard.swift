@@ -3,16 +3,16 @@ import AppKit
 /// Applies and restores `NSApp.presentationOptions` for a Launchpad session (WIN-03, WIN-12).
 ///
 /// Restore is idempotent and must run on every session-ending path: normal dismissal,
-/// termination, and best-effort process exit via `atexit`.
+/// termination, and best-effort process exit via `atexit` / cooperative signals.
 @MainActor
 final class PresentationOptionsGuard {
-    private let previousOptions: NSApplication.PresentationOptions
     private var didRestore = false
 
     init() {
         Self.installExitHandlerIfNeeded()
-        previousOptions = NSApp.presentationOptions
+        let previousOptions = NSApp.presentationOptions
         Self.store(previousOptions)
+        Self.sessionPreviousRaw = previousOptions.rawValue
         NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         AppLogger.window.info("Applied presentationOptions [.hideDock, .hideMenuBar]")
     }
@@ -20,23 +20,21 @@ final class PresentationOptionsGuard {
     func restore() {
         guard !didRestore else { return }
         didRestore = true
-        NSApp.presentationOptions = previousOptions
+        let previous = NSApplication.PresentationOptions(rawValue: Self.sessionPreviousRaw)
+        NSApp.presentationOptions = previous
         Self.clearStore()
         AppLogger.window.info("Restored presentationOptions")
     }
 
     deinit {
-        // Best-effort if the owner forgot an explicit restore. AppKit access from deinit
-        // under MainActor isolation uses the stored emergency path when needed.
-        if !didRestore {
-            let previous = previousOptions
-            PresentationOptionsGuard.restoreStored(previous)
-        }
+        // Cannot touch MainActor state here; emergency path uses the process-wide store.
+        PresentationOptionsGuard.restoreEmergencyIfNeeded()
     }
 
     // MARK: - Process-wide emergency restore (WIN-12)
 
     nonisolated(unsafe) private static var storedRaw: UInt = 0
+    nonisolated(unsafe) private static var sessionPreviousRaw: UInt = 0
     nonisolated(unsafe) private static var hasStored = false
     nonisolated(unsafe) private static var exitHandlerInstalled = false
 
@@ -49,13 +47,8 @@ final class PresentationOptionsGuard {
         hasStored = false
     }
 
-    nonisolated private static func restoreStored(_ options: NSApplication.PresentationOptions) {
-        NSApp.presentationOptions = options
-        clearStore()
-    }
-
     /// Best-effort restore for `atexit` / signal paths. AppKit is not async-signal-safe;
-    /// this covers orderly `exit` and cooperative termination, not hard crashes.
+    /// this covers orderly `exit` and cooperative termination, not hard crashes (SIGSEGV).
     nonisolated static func restoreEmergencyIfNeeded() {
         guard hasStored else { return }
         let options = NSApplication.PresentationOptions(rawValue: storedRaw)
@@ -72,7 +65,6 @@ final class PresentationOptionsGuard {
 
         let handler: @convention(c) (Int32) -> Void = { signal in
             PresentationOptionsGuard.restoreEmergencyIfNeeded()
-            // Re-raise with default disposition so the process still terminates.
             Darwin.signal(signal, SIG_DFL)
             _ = Darwin.raise(signal)
         }

@@ -7,11 +7,10 @@ final class LaunchpadSessionController {
     private var window: LaunchpadWindow?
     private var presentationGuard: PresentationOptionsGuard?
     private var keyDownMonitor: Any?
-    private var resignKeyObserver: NSObjectProtocol?
     private var isPresented = false
     private var isDismissing = false
 
-    /// Apps from the most recent present (DISC-12). Populated for later grid phases.
+    /// Apps from the most recent present (DISC-12).
     private(set) var apps: [DiscoveredApp] = []
 
     func present() {
@@ -95,16 +94,5 @@ final class LaunchpadSessionController {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
         }
-    }
-}
-
-/// Forwards window resign-key to the session controller (WIN-11).
-final class WindowResignDelegate: NSObject, NSWindowDelegate {
-    static let shared = WindowResignDelegate()
-
-    var onResignKey: (() -> Void)?
-
-    func windowDidResignKey(_ notification: Notification) {
-        onResignKey?()
     }
 }
