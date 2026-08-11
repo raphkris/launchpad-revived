@@ -1,0 +1,54 @@
+---
+description: Core invariants for Launchpad Revived. Always applies.
+alwaysApply: true
+---
+
+# Launchpad Revived — working rules
+
+## The spec is the source of truth
+
+- `docs/spec/260730.01.md` defines every requirement. Read it before changing behavior.
+- Requirements have IDs (`WIN-03`, `DISC-07`, …) and status markers.
+- **Implement `[D]` only.** Never implement anything marked `[O]` (open) or `[B]` (backlog), even if it seems obvious or trivially easy.
+- Only work inside the currently active slice — see §12 of the spec.
+- If a `[D]` requirement is ambiguous in a way that blocks you, **stop and say so.** Do not guess and do not pick a reasonable-seeming default.
+- Never edit the spec file. Propose changes in your response instead.
+
+## Build loop — build, do not launch
+
+- **Agents build, they do not launch.**
+- **`./run.sh --build` is the build command.** Run it after any code change.
+- **Never run `./run.sh` without a flag, and never `open` the built app.** The app hides the menu bar and Dock system-wide (`WIN-03`), so launching it takes over the user's entire screen. Worse, an unrestored `presentationOptions` on a crash path leaves them with no menu bar and no Dock. Only the user launches this app, and only when present to watch it.
+- If the build fails, read `.build/last-build.log`, fix the cause, and run again. Do not report completion on a failing build.
+- Never invoke `xcodebuild` directly. Do not create additional build scripts — `run.sh` may be extended when explicitly asked, but it stays the only one.
+
+## Non-negotiables
+
+- Swift 6, strict concurrency. Deployment target macOS 26.0.
+- Bundle identifier `lol.omg.rkm.LaunchpadRevived`.
+- AppKit application shell (`NSApplicationDelegate` + custom `NSWindow`), SwiftUI content via `NSHostingView`. Do not restructure this.
+- **No third-party dependencies.** System frameworks only. If you believe a package is needed, ask first.
+- Liquid Glass via the system SwiftUI glass APIs. Never hand-roll a blur or vibrancy imitation.
+- `os.Logger` for diagnostics, never `print()`. The sole exception is a diagnostic mode whose entire purpose is writing to stdout.
+- One primary type per file, ≤ 300 lines. Split rather than append.
+- Run `swift-format` before finishing.
+
+## `presentationOptions` safety
+
+`WIN-03` hides the menu bar and Dock. Every code path that can end a Launchpad session — dismissal, error, termination, crash handling — must restore the previous `presentationOptions`. Leaving a user with no menu bar and no Dock is the single worst failure this app can produce. Treat it accordingly.
+
+## Commits
+
+- One logical change per commit.
+- Reference requirement IDs in the message. Example:
+
+  ```
+  Add app discovery scanner
+
+  Implements DISC-01 through DISC-09. Uses .skipsPackageDescendants
+  so embedded apps inside Xcode.app are not indexed (DISC-02).
+
+  DISC-11 (Utilities seeding) not included — belongs with folders in Slice 3.
+  ```
+
+- When you finish a task, state which IDs you implemented and which you did not, and why.
