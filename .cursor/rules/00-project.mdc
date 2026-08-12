@@ -8,6 +8,8 @@ alwaysApply: true
 ## The spec is the source of truth
 
 - `docs/spec/260730.01.md` defines every requirement. Read it before changing behavior.
+- Deltas in `docs/spec/` with a later version number amend it and win where they conflict. The task prompt names which delta applies; read that delta in full before writing code.
+- A delta's file-ownership section is binding. Files it marks out of scope belong to a separate work stream — do not edit them, and do not implement requirements outside the delta you were given, even if you can see them.
 - Requirements have IDs (`WIN-03`, `DISC-07`, …) and status markers.
 - **Implement `[D]` only.** Never implement anything marked `[O]` (open) or `[B]` (backlog), even if it seems obvious or trivially easy.
 - Only work inside the currently active slice — see §12 of the spec.
