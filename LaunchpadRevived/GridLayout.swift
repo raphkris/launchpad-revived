@@ -6,14 +6,18 @@ enum GridLayout {
     static let columns = 7
     static let cellsPerPage = rows * columns
 
-    /// Horizontal scroll accumulation before a page turn commits (LAY-06).
+    /// Trackpad swipe distance before a page turn commits (LAY-06, LAY-14).
     static let pageScrollThreshold: CGFloat = 40
     /// Max displacement still treated as a background click, not a drag (LAY-09).
     static let pageDragClickSlop: CGFloat = 5
     /// Fraction of page width required to commit a drag-turn (LAY-09).
     static let pageDragCommitFraction: CGFloat = 0.25
-    /// Release velocity (pt/s) that commits a page flick (LAY-09).
-    static let pageDragFlickVelocity: CGFloat = 800
+    /// Spring response for a hard flick (LAY-14(c)).
+    static let pageSettleResponseFast: Double = 0.18
+    /// Spring response for a slow release (LAY-14(c)).
+    static let pageSettleResponseSlow: Double = 0.42
+    /// Absolute velocity (pt/s) that maps to `pageSettleResponseFast`.
+    static let pageSettleVelocitySpan: CGFloat = 1800
 
     struct Metrics: Sendable {
         let cellWidth: CGFloat
@@ -50,5 +54,12 @@ enum GridLayout {
             topPadding: topPadding,
             bottomPadding: bottomPadding
         )
+    }
+
+    /// Maps release velocity to spring response. Velocity never chooses the page (LAY-14(c)).
+    static func pageSettleResponse(velocity: CGFloat) -> Double {
+        let t = min(1, max(0, abs(velocity) / pageSettleVelocitySpan))
+        return pageSettleResponseSlow
+            - Double(t) * (pageSettleResponseSlow - pageSettleResponseFast)
     }
 }

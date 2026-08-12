@@ -3,7 +3,7 @@ import SwiftUI
 /// Root SwiftUI content hosted in the Launchpad window (PRJ-02).
 ///
 /// Owns keyboard focus, ⌘-arrow / arrow handling (LAY-05, LAY-08), scroll page
-/// turns (LAY-06), and background click-drag pagination (LAY-09).
+/// turns (LAY-06, LAY-14), and background click-drag pagination (LAY-09).
 struct LaunchpadRootView: View {
     @Bindable var viewModel: LaunchpadViewModel
     var onBackgroundClick: () -> Void
@@ -21,12 +21,18 @@ struct LaunchpadRootView: View {
 
                 Color.clear
                     .contentShape(Rectangle())
-                    .gesture(backgroundDragGesture(pageWidth: pageWidth))
+                    .gesture(backgroundDragGesture)
 
                 AppGridView(
                     viewModel: viewModel,
                     onSelect: onSelectApp
                 )
+            }
+            .onAppear {
+                viewModel.pageWidth = pageWidth
+            }
+            .onChange(of: pageWidth) { _, newWidth in
+                viewModel.pageWidth = newWidth
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -35,14 +41,26 @@ struct LaunchpadRootView: View {
         .onAppear {
             isSurfaceFocused = true
             let vm = viewModel
-            let turner = ScrollWheelPageTurner { [weak vm] direction in
-                guard let vm else { return }
-                if direction < 0 {
-                    vm.goToPreviousPage()
-                } else {
-                    vm.goToNextPage()
+            let turner = ScrollWheelPageTurner(
+                onOffsetChanged: { [weak vm] offset in
+                    vm?.setPageDragOffset(offset)
+                },
+                onGestureEnded: { [weak vm] translation, velocity in
+                    _ = vm?.settlePageDrag(
+                        translation: translation,
+                        velocity: velocity,
+                        allowsDismiss: false
+                    )
+                },
+                onDiscreteTurn: { [weak vm] direction in
+                    guard let vm else { return }
+                    if direction < 0 {
+                        vm.goToPreviousPage()
+                    } else {
+                        vm.goToNextPage()
+                    }
                 }
-            }
+            )
             scrollTurner = turner
             turner.start()
         }
@@ -65,17 +83,17 @@ struct LaunchpadRootView: View {
         }
     }
 
-    private func backgroundDragGesture(pageWidth: CGFloat) -> some Gesture {
+    private var backgroundDragGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
                 // Icon hits never reach this gesture — dragging an icon does nothing (INT-03).
-                viewModel.pageDragOffset = value.translation.width
+                viewModel.setPageDragOffset(value.translation.width)
             }
             .onEnded { value in
-                let result = viewModel.endPageDrag(
+                let result = viewModel.settlePageDrag(
                     translation: value.translation.width,
                     velocity: value.velocity.width,
-                    pageWidth: pageWidth
+                    allowsDismiss: true
                 )
                 switch result {
                 case .dismiss:

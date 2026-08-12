@@ -27,8 +27,8 @@ final class LaunchpadSessionController {
     }
 
     /// Fade timing in seconds (WIN-16). Moves under `config` (JSN-09) in Slice 2.
-    static let windowFadeInDuration: TimeInterval = 0.15
-    static let windowFadeOutDuration: TimeInterval = 0.12
+    static let windowFadeInDuration: TimeInterval = 0.25
+    static let windowFadeOutDuration: TimeInterval = 0.18
 
     private var window: LaunchpadWindow?
     private var presentationGuard: PresentationOptionsGuard?

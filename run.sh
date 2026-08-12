@@ -34,10 +34,16 @@ if ! xcodebuild \
       -configuration "$CONFIG" \
       -derivedDataPath "$BUILD_DIR" \
       -destination 'platform=macOS' \
+      CODE_SIGN_IDENTITY="-" \
+      CODE_SIGN_STYLE=Manual \
+      DEVELOPMENT_TEAM="" \
       build > "$LOG" 2>&1; then
   echo "==> BUILD FAILED"
   echo
   grep -E "(error|warning):" "$LOG" | head -40
+  echo
+  echo "==> last 20 lines of log:"
+  tail -20 "$LOG"
   echo
   echo "==> full log: $LOG"
   exit 1

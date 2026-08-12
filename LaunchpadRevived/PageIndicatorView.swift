@@ -3,7 +3,8 @@ import SwiftUI
 /// Page-dot indicator with no surface behind the dots (LAY-04, LAY-05).
 struct PageIndicatorView: View {
     let pageCount: Int
-    @Binding var currentPage: Int
+    let currentPage: Int
+    var onSelect: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -13,7 +14,7 @@ struct PageIndicatorView: View {
                     .frame(width: 8, height: 8)
                     .contentShape(Rectangle().size(CGSize(width: 20, height: 20)))
                     .onTapGesture {
-                        currentPage = index
+                        onSelect(index)
                     }
                     .accessibilityLabel("Page \(index + 1)")
             }

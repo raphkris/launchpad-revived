@@ -11,19 +11,25 @@ struct AppGridView: View {
     @State private var gridSize: CGSize = .zero
 
     var body: some View {
-        let metrics = GridLayout.metrics(for: gridSize)
-        let pageWidth = max(gridSize.width, 1)
+        ZStack {
+            if gridSize.width > 0, gridSize.height > 0 {
+                let metrics = GridLayout.metrics(for: gridSize)
+                let pageWidth = gridSize.width
 
-        VStack(spacing: 0) {
-            pageStrip(pageWidth: pageWidth, metrics: metrics)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 0) {
+                    pageStrip(pageWidth: pageWidth, metrics: metrics)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            PageIndicatorView(
-                pageCount: viewModel.pageCount,
-                currentPage: $viewModel.currentPage
-            )
-            .padding(.bottom, max(16, metrics.bottomPadding * 0.35))
+                    PageIndicatorView(
+                        pageCount: viewModel.pageCount,
+                        currentPage: viewModel.currentPage,
+                        onSelect: { viewModel.goToPage($0) }
+                    )
+                    .padding(.bottom, max(16, metrics.bottomPadding * 0.35))
+                }
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             GeometryReader { geometry in
                 Color.clear
@@ -43,12 +49,15 @@ struct AppGridView: View {
 
     @ViewBuilder
     private func pageStrip(pageWidth: CGFloat, metrics: GridLayout.Metrics) -> some View {
+        let first = max(0, viewModel.currentPage - 1)
+        let last = min(viewModel.pageCount - 1, viewModel.currentPage + 1)
+        let currentIndex = viewModel.currentPage - first
         let offset =
-            -CGFloat(viewModel.currentPage) * pageWidth
+            -CGFloat(currentIndex) * pageWidth
             + viewModel.visualPageOffset(pageWidth: pageWidth)
 
         HStack(spacing: 0) {
-            ForEach(0..<viewModel.pageCount, id: \.self) { page in
+            ForEach(first...last, id: \.self) { page in
                 pageContent(page: page, metrics: metrics)
                     .frame(width: pageWidth)
             }
@@ -56,16 +65,6 @@ struct AppGridView: View {
         .offset(x: offset)
         .frame(width: pageWidth, alignment: .leading)
         .clipped()
-        .animation(
-            viewModel.pageDragOffset == 0
-                ? .interactiveSpring(response: 0.35, dampingFraction: 0.85) : nil,
-            value: viewModel.currentPage
-        )
-        .animation(
-            viewModel.pageDragOffset == 0
-                ? .interactiveSpring(response: 0.35, dampingFraction: 0.85) : nil,
-            value: viewModel.pageDragOffset
-        )
     }
 
     @ViewBuilder

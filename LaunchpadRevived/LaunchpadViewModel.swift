@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import SwiftUI
 
 /// Observable UI state for the Launchpad grid session.
 @MainActor
@@ -20,8 +21,11 @@ final class LaunchpadViewModel {
     /// Optional cell index scoped to the current page (LAY-08). `nil` means nothing focused.
     var focusedCellIndex: Int?
 
-    /// Live drag offset for background page dragging (LAY-09). Zero when not dragging.
+    /// Live drag offset for continuous page gestures (LAY-09, LAY-14). Zero when idle.
     var pageDragOffset: CGFloat = 0
+
+    /// Width of one page in the strip; updated from layout (LAY-14).
+    var pageWidth: CGFloat = 1
 
     var pageCount: Int {
         max(1, (apps.count + GridLayout.cellsPerPage - 1) / GridLayout.cellsPerPage)
@@ -32,26 +36,37 @@ final class LaunchpadViewModel {
         populatedCellCount(on: currentPage)
     }
 
+    private var isSettling = false
+
     func reload() {
         apps = AppDiscovery.discover()
         currentPage = min(currentPage, max(0, pageCount - 1))
         focusedCellIndex = nil
         pageDragOffset = 0
+        isSettling = false
     }
 
     func goToNextPage() {
-        guard currentPage < pageCount - 1 else { return }
-        currentPage += 1
+        settle(to: .next, velocity: 0)
     }
 
     func goToPreviousPage() {
-        guard currentPage > 0 else { return }
-        currentPage -= 1
+        settle(to: .previous, velocity: 0)
     }
 
     func goToPage(_ page: Int) {
         let clamped = min(max(0, page), max(0, pageCount - 1))
-        currentPage = clamped
+        let delta = clamped - currentPage
+        if delta == 1 {
+            settle(to: .next, velocity: 0)
+        } else if delta == -1 {
+            settle(to: .previous, velocity: 0)
+        } else if delta != 0 {
+            withoutAnimation {
+                currentPage = clamped
+                pageDragOffset = 0
+            }
+        }
     }
 
     /// Clears focus when present. Returns `true` if focus was cleared (LAY-11).
@@ -114,7 +129,7 @@ final class LaunchpadViewModel {
         return pageApps[cellIndex]
     }
 
-    /// Rubber-banded visual offset while dragging pages (LAY-09).
+    /// Rubber-banded visual offset while dragging pages (LAY-09, LAY-14(a)).
     func visualPageOffset(pageWidth: CGFloat) -> CGFloat {
         let raw = pageDragOffset
         let atFirst = currentPage == 0 && raw > 0
@@ -123,35 +138,103 @@ final class LaunchpadViewModel {
         return rubberBand(offset: raw, pageWidth: pageWidth)
     }
 
-    /// Commits or springs back after a background drag (LAY-09).
-    func endPageDrag(
+    /// 1:1 tracking during a continuous gesture (LAY-14(a)).
+    func setPageDragOffset(_ offset: CGFloat) {
+        guard !isSettling else { return }
+        withoutAnimation {
+            pageDragOffset = offset
+        }
+    }
+
+    /// Shared settle for trackpad scroll and background drag (LAY-14).
+    func settlePageDrag(
         translation: CGFloat,
         velocity: CGFloat,
-        pageWidth: CGFloat
+        allowsDismiss: Bool
     ) -> PageDragEndResult {
-        defer { pageDragOffset = 0 }
-
-        if abs(translation) < GridLayout.pageDragClickSlop {
+        if allowsDismiss, abs(translation) < GridLayout.pageDragClickSlop {
+            withoutAnimation {
+                pageDragOffset = 0
+            }
             return .dismiss
         }
 
-        let passedDistance = abs(translation) >= pageWidth * GridLayout.pageDragCommitFraction
-        let passedFlick = abs(velocity) >= GridLayout.pageDragFlickVelocity
-        guard passedDistance || passedFlick else {
-            return .springBack
+        let threshold =
+            allowsDismiss
+            ? pageWidth * GridLayout.pageDragCommitFraction
+            : GridLayout.pageScrollThreshold
+        let proposed: PageSettleTarget
+        if abs(translation) >= threshold {
+            proposed = translation > 0 ? .previous : .next
+        } else {
+            proposed = .springBack
+        }
+        let resolved = resolvedTarget(proposed)
+        settle(to: resolved, velocity: velocity)
+        return resolved == .springBack ? .springBack : .committed
+    }
+
+    /// One page-transition model for scroll, drag, keyboard, and dots (LAY-14).
+    func settle(to target: PageSettleTarget, velocity: CGFloat) {
+        let resolved = resolvedTarget(target)
+        guard !isSettling else { return }
+
+        let destinationOffset: CGFloat
+        switch resolved {
+        case .springBack:
+            destinationOffset = 0
+        case .previous:
+            destinationOffset = pageWidth
+        case .next:
+            destinationOffset = -pageWidth
         }
 
-        // Prefer translation when it cleared the distance bar; otherwise use flick velocity.
-        let direction = passedDistance ? translation : velocity
-        if direction > 0, currentPage > 0 {
-            currentPage -= 1
-            return .committed
+        if pageWidth <= 1 {
+            apply(resolved)
+            pageDragOffset = 0
+            return
         }
-        if direction < 0, currentPage < pageCount - 1 {
-            currentPage += 1
-            return .committed
+
+        isSettling = true
+        let response = GridLayout.pageSettleResponse(velocity: velocity)
+        withAnimation(.interactiveSpring(response: response, dampingFraction: 0.85)) {
+            pageDragOffset = destinationOffset
+        } completion: {
+            guard self.isSettling else { return }
+            self.withoutAnimation {
+                self.apply(resolved)
+                self.pageDragOffset = 0
+                self.isSettling = false
+            }
         }
-        return .springBack
+    }
+
+    private func resolvedTarget(_ target: PageSettleTarget) -> PageSettleTarget {
+        switch target {
+        case .previous where currentPage <= 0:
+            return .springBack
+        case .next where currentPage >= pageCount - 1:
+            return .springBack
+        default:
+            return target
+        }
+    }
+
+    private func apply(_ target: PageSettleTarget) {
+        switch target {
+        case .springBack:
+            break
+        case .previous:
+            if currentPage > 0 { currentPage -= 1 }
+        case .next:
+            if currentPage < pageCount - 1 { currentPage += 1 }
+        }
+    }
+
+    private func withoutAnimation(_ updates: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, updates)
     }
 
     private func rubberBand(offset: CGFloat, pageWidth: CGFloat) -> CGFloat {

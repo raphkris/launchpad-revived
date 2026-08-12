@@ -10,15 +10,13 @@ struct AppIconView: View {
     var isFocused: Bool = false
     let action: () -> Void
 
-    @State private var isHovered = false
-
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
                 ZStack(alignment: .topTrailing) {
                     Image(nsImage: app.icon(size: iconSize))
                         .resizable()
-                        .interpolation(.high)
+                        .interpolation(.none)
                         .frame(width: iconSize, height: iconSize)
                         .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
 
@@ -43,8 +41,6 @@ struct AppIconView: View {
             }
             // Intrinsic size only — do not expand to the cell (LAY-10).
             .fixedSize(horizontal: false, vertical: true)
-            // Hover scales slightly; focus uses the system focus-indicator stroke (LAY-12).
-            .scaleEffect(isHovered && !isFocused ? 1.06 : 1.0)
             .overlay {
                 if isFocused {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -54,8 +50,6 @@ struct AppIconView: View {
             }
         }
         .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
 
     private func badgeText(_ value: Int) -> String {
