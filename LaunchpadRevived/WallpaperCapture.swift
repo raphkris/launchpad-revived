@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 enum WallpaperCapture {
     @MainActor

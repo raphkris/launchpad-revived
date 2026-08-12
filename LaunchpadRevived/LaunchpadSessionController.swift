@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 
 /// Owns the Launchpad window session: present, dismiss, presentationOptions (WIN-*).

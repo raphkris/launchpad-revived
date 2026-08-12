@@ -9,6 +9,11 @@
 # On failure, the full log is at .build/last-build.log — read it before
 # guessing at the cause.
 
+# Re-exec under bash if invoked via zsh/sh (BASH_SOURCE is bash-only).
+if [[ -z "${BASH_VERSION:-}" ]]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
+
 set -uo pipefail
 
 SCHEME="LaunchpadRevived"

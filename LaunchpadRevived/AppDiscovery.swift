@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import OSLog
 
 /// Scans standard application roots and returns launchable app bundles (DISC-01–DISC-10).
 enum AppDiscovery {

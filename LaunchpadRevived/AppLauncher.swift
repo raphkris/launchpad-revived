@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 /// Launches apps via `NSWorkspace`, activating an existing instance when running (INT-01, INT-02).
 enum AppLauncher {

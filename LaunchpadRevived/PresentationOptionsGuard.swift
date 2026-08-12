@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 /// Applies and restores `NSApp.presentationOptions` for a Launchpad session (WIN-03, WIN-12).
 ///
@@ -51,9 +52,27 @@ final class PresentationOptionsGuard {
     /// this covers orderly `exit` and cooperative termination, not hard crashes (SIGSEGV).
     nonisolated static func restoreEmergencyIfNeeded() {
         guard hasStored else { return }
-        let options = NSApplication.PresentationOptions(rawValue: storedRaw)
+        let raw = storedRaw
         hasStored = false
-        NSApp.presentationOptions = options
+        let options = NSApplication.PresentationOptions(rawValue: raw)
+        applyPresentationOptionsFromEmergencyPath(options)
+    }
+
+    /// Crosses to the main actor deliberately for WIN-12 teardown outside normal MainActor calls.
+    nonisolated private static func applyPresentationOptionsFromEmergencyPath(
+        _ options: NSApplication.PresentationOptions
+    ) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                NSApp.presentationOptions = options
+            }
+        } else {
+            DispatchQueue.main.sync {
+                MainActor.assumeIsolated {
+                    NSApp.presentationOptions = options
+                }
+            }
+        }
     }
 
     nonisolated private static func installExitHandlerIfNeeded() {

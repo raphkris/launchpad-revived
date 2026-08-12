@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let session = LaunchpadSessionController()
