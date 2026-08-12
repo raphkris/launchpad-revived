@@ -6,6 +6,15 @@ enum GridLayout {
     static let columns = 7
     static let cellsPerPage = rows * columns
 
+    /// Horizontal scroll accumulation before a page turn commits (LAY-06).
+    static let pageScrollThreshold: CGFloat = 40
+    /// Max displacement still treated as a background click, not a drag (LAY-09).
+    static let pageDragClickSlop: CGFloat = 5
+    /// Fraction of page width required to commit a drag-turn (LAY-09).
+    static let pageDragCommitFraction: CGFloat = 0.25
+    /// Release velocity (pt/s) that commits a page flick (LAY-09).
+    static let pageDragFlickVelocity: CGFloat = 800
+
     struct Metrics: Sendable {
         let cellWidth: CGFloat
         let cellHeight: CGFloat

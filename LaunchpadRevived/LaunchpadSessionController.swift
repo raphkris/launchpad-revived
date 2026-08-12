@@ -153,7 +153,10 @@ final class LaunchpadSessionController {
             guard let self else { return event }
 
             switch event.keyCode {
-            case 53:  // Escape
+            case 53:  // Escape — clear focus first (LAY-11), else dismiss (WIN-11)
+                if self.viewModel.clearFocusIfNeeded() {
+                    return nil
+                }
                 self.dismiss(reason: .escape)
                 return nil
             default:

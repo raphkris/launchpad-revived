@@ -1,11 +1,16 @@
+import AppKit
 import SwiftUI
 
-/// Single app icon cell. Accepts an optional badge that is always `nil` in Slice 1 (B-10).
+/// Single app icon cell. Hit target is icon + label only (LAY-10). Focus uses the
+/// system keyboard-focus indicator color (LAY-12). Badge stays `nil` in Slice 1 (B-10).
 struct AppIconView: View {
     let app: DiscoveredApp
     var badge: Int? = nil
     let iconSize: CGFloat
+    var isFocused: Bool = false
     let action: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
@@ -36,9 +41,21 @@ struct AppIconView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: iconSize + 24)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // Intrinsic size only — do not expand to the cell (LAY-10).
+            .fixedSize(horizontal: false, vertical: true)
+            // Hover scales slightly; focus uses the system focus-indicator stroke (LAY-12).
+            .scaleEffect(isHovered && !isFocused ? 1.06 : 1.0)
+            .overlay {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor), lineWidth: 3)
+                        .padding(-4)
+                }
+            }
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
 
     private func badgeText(_ value: Int) -> String {
