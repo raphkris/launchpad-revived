@@ -3,7 +3,10 @@ import Foundation
 import OSLog
 
 /// Scans standard application roots and returns launchable app bundles (DISC-01–DISC-10).
-enum AppDiscovery {
+///
+/// Pure filesystem work with no UI state, so the whole type opts out of the
+/// project-wide `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` default.
+nonisolated enum AppDiscovery {
     private static let maxDepthBelowRoot = 3
 
     /// Roots in scan order (DISC-01). Earlier roots win when bundle IDs collide.
@@ -18,7 +21,7 @@ enum AppDiscovery {
     }
 
     /// Discovers apps across all roots, flattened, sorted alphabetically by display name.
-    nonisolated static func discover() -> [DiscoveredApp] {
+    static func discover() -> [DiscoveredApp] {
         var seenBundleIDs = Set<String>()
         var results: [DiscoveredApp] = []
 
@@ -37,7 +40,7 @@ enum AppDiscovery {
         return results
     }
 
-    nonisolated private static func scan(root: URL) -> [DiscoveredApp] {
+    private static func scan(root: URL) -> [DiscoveredApp] {
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: root.path, isDirectory: &isDirectory),
@@ -80,13 +83,13 @@ enum AppDiscovery {
     }
 
     /// Number of path components of `url` below `root` (DISC-03).
-    nonisolated private static func relativeDepth(of url: URL, below root: URL) -> Int {
+    private static func relativeDepth(of url: URL, below root: URL) -> Int {
         let rootCount = root.standardizedFileURL.pathComponents.count
         let urlCount = url.standardizedFileURL.pathComponents.count
         return max(0, urlCount - rootCount)
     }
 
-    nonisolated private static func makeApp(from url: URL) -> DiscoveredApp? {
+    private static func makeApp(from url: URL) -> DiscoveredApp? {
         guard let values = try? url.resourceValues(forKeys: [.isApplicationKey, .isPackageKey]),
             values.isApplication == true || values.isPackage == true || url.pathExtension == "app"
         else {
@@ -115,7 +118,7 @@ enum AppDiscovery {
         )
     }
 
-    nonisolated private static func localizedDisplayName(for url: URL) -> String {
+    private static func localizedDisplayName(for url: URL) -> String {
         if let name = try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName,
             !name.isEmpty
         {
@@ -124,13 +127,13 @@ enum AppDiscovery {
         return url.deletingPathExtension().lastPathComponent
     }
 
-    nonisolated private static func isBackgroundAgent(at url: URL) -> Bool {
+    private static func isBackgroundAgent(at url: URL) -> Bool {
         guard let info = Bundle(url: url)?.infoDictionary else { return false }
         return boolInfoValue(info, key: "LSUIElement")
             || boolInfoValue(info, key: "LSBackgroundOnly")
     }
 
-    nonisolated private static func boolInfoValue(_ info: [String: Any], key: String) -> Bool {
+    private static func boolInfoValue(_ info: [String: Any], key: String) -> Bool {
         if let value = info[key] as? Bool {
             return value
         }
@@ -143,7 +146,7 @@ enum AppDiscovery {
         return false
     }
 
-    nonisolated private static func pathHashIdentity(for url: URL) -> String {
+    private static func pathHashIdentity(for url: URL) -> String {
         let path = url.resolvingSymlinksInPath().path
         let digest = SHA256.hash(data: Data(path.utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
