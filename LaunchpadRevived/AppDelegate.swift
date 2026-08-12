@@ -1,30 +1,35 @@
-//
-//  AppDelegate.swift
-//  LaunchpadRevived
-//
-//  Created by Raphael Mangubat on 8/10/26.
-//
+import AppKit
+import OSLog
 
-import Cocoa
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let session = LaunchpadSessionController()
 
-@main
-class AppDelegate: NSObject, NSApplicationDelegate {
-
-    @IBOutlet var window: NSWindow!
-
-
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Insert code here to initialize your application
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        AppLogger.app.info("Application launched")
+        session.present()
     }
 
-    func applicationWillTerminate(_ aNotification: Notification) {
-        // Insert code here to tear down your application
-    }
-
-    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        session.present()
         return true
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        AppLogger.app.info("Application will terminate — restoring presentationOptions")
+        session.dismiss(reason: "will-terminate")
+        session.restorePresentationOptionsIfNeeded()
+    }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        session.dismiss(reason: "should-terminate")
+        session.restorePresentationOptionsIfNeeded()
+        return .terminateNow
+    }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        true
+    }
 }
-
