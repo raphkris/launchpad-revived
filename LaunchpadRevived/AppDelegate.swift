@@ -17,15 +17,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// WIN-14: covers `⌘⇥`, Mission Control, Spotlight, and any other app taking over.
+    func applicationDidResignActive(_ notification: Notification) {
+        session.dismiss(reason: .resignActive)
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         AppLogger.app.info("Application will terminate — restoring presentationOptions")
-        session.dismiss(reason: "will-terminate")
+        // WIN-17: restore first and synchronously; the dismissal below skips the fade.
         session.restorePresentationOptionsIfNeeded()
+        session.dismiss(reason: .terminating)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        session.dismiss(reason: "should-terminate")
         session.restorePresentationOptionsIfNeeded()
+        session.dismiss(reason: .terminating)
         return .terminateNow
     }
 

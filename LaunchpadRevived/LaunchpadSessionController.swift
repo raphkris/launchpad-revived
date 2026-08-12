@@ -5,6 +5,31 @@ import SwiftUI
 /// Owns the Launchpad window session: present, dismiss, presentationOptions (WIN-*).
 @MainActor
 final class LaunchpadSessionController {
+    /// Why a session is ending. Determines focus handling (WIN-13) and fading (WIN-17).
+    enum DismissReason: String {
+        case escape
+        case backgroundClick = "background-click"
+        case resignKey = "resign-key"
+        case resignActive = "resign-active"
+        case launch
+        case terminating
+
+        /// INT-01 lets the launched app take focus itself; hiding would race it (WIN-13).
+        var returnsFocusToPreviousApp: Bool {
+            switch self {
+            case .escape, .backgroundClick, .resignKey, .resignActive: true
+            case .launch, .terminating: false
+            }
+        }
+
+        /// WIN-12 outranks WIN-15: nothing animates between termination and a restored menu bar.
+        var fades: Bool { self != .terminating }
+    }
+
+    /// Fade timing in seconds (WIN-16). Moves under `config` (JSN-09) in Slice 2.
+    static let windowFadeInDuration: TimeInterval = 0.15
+    static let windowFadeOutDuration: TimeInterval = 0.12
+
     private var window: LaunchpadWindow?
     private var presentationGuard: PresentationOptionsGuard?
     private var keyDownMonitor: Any?
@@ -32,7 +57,7 @@ final class LaunchpadSessionController {
         let rootView = LaunchpadRootView(
             viewModel: viewModel,
             onBackgroundClick: { [weak self] in
-                self?.dismiss(reason: "background-click")
+                self?.dismiss(reason: .backgroundClick)
             },
             onSelectApp: { [weak self] app in
                 self?.launchAndDismiss(app)
@@ -43,7 +68,7 @@ final class LaunchpadSessionController {
         window.contentView = NSHostingView(rootView: rootView)
         window.delegate = WindowResignDelegate.shared
         WindowResignDelegate.shared.onResignKey = { [weak self] in
-            self?.dismiss(reason: "resign-key")
+            self?.dismiss(reason: .resignKey)
         }
 
         presentationGuard = PresentationOptionsGuard()
@@ -52,27 +77,60 @@ final class LaunchpadSessionController {
         isDismissing = false
 
         installKeyMonitor()
+
+        // WIN-15: fade in from fully transparent.
+        window.alphaValue = 0
+        NSApp.unhide(nil)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.windowFadeInDuration
+            window.animator().alphaValue = 1
+        }
         AppLogger.window.info("Launchpad presented on main display")
     }
 
-    func dismiss(reason: String) {
+    /// Idempotent: WIN-11, WIN-14 and the resign-key path can all fire for one user action.
+    func dismiss(reason: DismissReason) {
         guard isPresented, !isDismissing else { return }
         isDismissing = true
-        AppLogger.window.info("Dismissing Launchpad (\(reason, privacy: .public))")
+        AppLogger.window.info("Dismissing Launchpad (\(reason.rawValue, privacy: .public))")
 
         removeKeyMonitor()
         WindowResignDelegate.shared.onResignKey = nil
 
-        presentationGuard?.restore()
-        presentationGuard = nil
+        guard let window, reason.fades else {
+            finishDismissal(reason: reason)
+            return
+        }
 
+        // WIN-15: presentationOptions stay applied until the fade completes, otherwise the
+        // Dock and menu bar reappear while Launchpad is still on screen.
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.windowFadeOutDuration
+            window.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                self?.finishDismissal(reason: reason)
+            }
+        }
+    }
+
+    private func finishDismissal(reason: DismissReason) {
         window?.orderOut(nil)
         window?.contentView = nil
         window = nil
+
+        presentationGuard?.restore()
+        presentationGuard = nil
+
         isPresented = false
         isDismissing = false
+
+        // WIN-13: ordering out alone leaves this app frontmost with an empty menu bar.
+        if reason.returnsFocusToPreviousApp {
+            NSApp.hide(nil)
+        }
     }
 
     /// Restores presentation options without requiring a presented window (termination).
@@ -82,8 +140,8 @@ final class LaunchpadSessionController {
     }
 
     private func launchAndDismiss(_ app: DiscoveredApp) {
-        // Dismiss first so presentationOptions are restored before the target activates (WIN-11, INT-01).
-        dismiss(reason: "launch")
+        // The launched app takes focus itself, so this path fades out without hiding (WIN-13, INT-01).
+        dismiss(reason: .launch)
         Task { @MainActor in
             await AppLauncher.launch(app)
         }
@@ -96,13 +154,7 @@ final class LaunchpadSessionController {
 
             switch event.keyCode {
             case 53:  // Escape
-                self.dismiss(reason: "escape")
-                return nil
-            case 123:  // Left arrow (LAY-05)
-                self.viewModel.goToPreviousPage()
-                return nil
-            case 124:  // Right arrow (LAY-05)
-                self.viewModel.goToNextPage()
+                self.dismiss(reason: .escape)
                 return nil
             default:
                 return event
